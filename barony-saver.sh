@@ -3,15 +3,17 @@
 _argRestore=${1}
 _argFilesBack=${2:-1}
 
-GAME_SAVE_DIR="."
+GAME_SAVE_DIR="$HOME/.barony/savegames"
 
-GAME_SAVE_NAME="savegame"
-GAME_SAVE_EXT="dat"
+GAME_SAVE_NAME="savegame0"
+GAME_SAVE_EXT="baronysave"
 GAME_SAVE_FILENAME="$GAME_SAVE_NAME.$GAME_SAVE_EXT"
 GAME_SAVE_FILEPATH="$GAME_SAVE_DIR/$GAME_SAVE_FILENAME"
 
 ARCHIVE_DIR="$HOME/Programs/barony-saver/archive"
 CHECKSUM_PATH="$ARCHIVE_DIR/checksum.md5"
+
+cd $GAME_SAVE_DIR
 
 if [ "$_argRestore" == "-r" ]; then
     # Restore Mode
@@ -31,7 +33,3 @@ else
         md5sum $GAME_SAVE_FILENAME >$CHECKSUM_PATH
     fi
 fi
-
-foo=$(ls archive -r --ignore=checksum.md5 | sed -n $_argFilesBack"p")
-echo $foo
-#
