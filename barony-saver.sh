@@ -4,6 +4,9 @@
 ### Arguments
 ##################################################
 
+_argGameSlot=0
+_argFilesBack=1
+
 while getopts ":g:i:r" opt; do
   case $opt in
     g) _argGameSlot="$OPTARG"
@@ -76,7 +79,13 @@ cd $DIR_SAVES
 if [ "$_argRestore" == 1 ]; then
   ##### Restore Mode #####
 
-  archiveFilePath="$DIR_ARCHIVE/$(ls $DIR_ARCHIVE -r --ignore=$CHECKSUM_FILE_NAME | grep $_argGameSlot | sed -n $_argFilesBack"p")"
+  foundArchiveFile=$(ls $DIR_ARCHIVE -r --ignore="$CHECKSUM_FILE_NAME" | grep "$SAVE_PREFIX$_argGameSlot" | sed -n "$_argFilesBack"p)
+  if [[ "$foundArchiveFile" == "" ]]; then
+    echo "Backup not found for game slot '$_argGameSlot', file back '$_argFilesBack'"
+    exit 1
+  fi
+
+  archiveFilePath="$DIR_ARCHIVE/$(ls $DIR_ARCHIVE -r --ignore="$CHECKSUM_FILE_NAME" | grep "$SAVE_PREFIX$_argGameSlot" | sed -n "$_argFilesBack"p)"
   saveFilePath="$DIR_SAVES/$(deriveSaveFileName $_argGameSlot)"
       
   cp $archiveFilePath $saveFilePath
