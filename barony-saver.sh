@@ -1,5 +1,8 @@
 #!/bin/bash
 
+##################################################
+### Arguments
+##################################################
 
 while getopts ":g:i:r" opt; do
   case $opt in
@@ -21,56 +24,96 @@ while getopts ":g:i:r" opt; do
   esac
 done
 
-echo $_argGameSlot
-echo $_argFilesBack
-echo $_argRestore
+##################################################
+### Utils
+##################################################
+DIR_ARCHIVE="$HOME/Programs/barony-saver/archive"
+DIR_SAVES="$HOME/.barony/savegames"
+SAVE_PREFIX="savegame"
+SAVE_EXT="baronysave"
 
-exit 0
+CHECKSUM_FILE_NAME="checksum.md5"
+CHECKSUM_PATH="$DIR_ARCHIVE/$CHECKSUM_FILE_NAME"
 
-GAME_SAVE_DIR="$HOME/.barony/savegames"
+function deriveSaveFileName {
+  local slot=${1:-0}
+  local timestamp=$2
+  local timestampDelimiter=""
 
-GAME_SAVE_NAME="savegame"
-GAME_SAVE_EXT="baronysave"
-GAME_SAVE_FILENAME="$GAME_SAVE_NAME.$GAME_SAVE_EXT"
-GAME_SAVE_FILEPATH="$GAME_SAVE_DIR/$GAME_SAVE_FILENAME"
+  if [ -n "$timestamp" ]; then
+    timestampDelimiter="_"
+  fi
 
-ARCHIVE_DIR="$HOME/Programs/barony-saver/archive"
-CHECKSUM_PATH="$ARCHIVE_DIR/checksum.md5"
+  echo "$SAVE_PREFIX$slot$timestampDelimiter$timestamp.$SAVE_EXT"
+}
 
-cd $GAME_SAVE_DIR
+function areAllChecksumsValid {
+  md5sum --quiet -c $CHECKSUM_PATH >/dev/null
+  local status="$?"
 
-indexes=""
-for fileName in $(ls "$GAME_SAVE_DIR" | grep "$GAME_SAVE_EXT"); do
-    noPrefix="${fileName/$GAME_SAVE_NAME/}"
-    potentialIndex="${noPrefix/.$GAME_SAVE_EXT/}"
-    if [[ "$potentialIndex" =~ ^[+-]?[0-9]+$ ]]; then
-        indexes="$indexes $potentialIndex"
-        echo "$potentialIndex is an integer."
-    fi
-done
+  if [[ "$status" == "1" ]]; then
+    echo 0
+    return
+  fi
+
+  local actualSlotCount=$(ls -1 | wc -l)
+  local checkSumSlotCount=$(wc -l $CHECKSUM_PATH | awk '{print $1}')
+  if [[ "$actualSlotCount" != "$checkSumSlotCount" ]]; then
+    echo 0
+    return
+  fi
+
+  echo 1
+}
+
+##################################################
+### Program
+##################################################
+
+# Set to saves directory
+cd $DIR_SAVES
 
 if [ "$_argRestore" == 1 ]; then
-    # Restore Mode
-    gameSaveFilePath="$GAME_SAVE_DIR/$GAME_SAVE_FILENAME"
-    $gameSlot="$GAME_SAVE_NAME$i"
-    restoreFilePath="$ARCHIVE_DIR/$(ls $ARCHIVE_DIR -r --ignore=checksum.md5 | grep $gameSlot | sed -n $_argFilesBack"p")"
-    cp $restoreFilePath $gameSaveFilePath
+  ##### Restore Mode #####
+
+  archiveFilePath="$DIR_ARCHIVE/$(ls $DIR_ARCHIVE -r --ignore=$CHECKSUM_FILE_NAME | grep $_argGameSlot | sed -n $_argFilesBack"p")"
+  saveFilePath="$DIR_SAVES/$(deriveSaveFileName $_argGameSlot)"
+      
+  cp $archiveFilePath $saveFilePath
 else
-    for i in $indexes; do
-        # Archive Mode
-        md5sum --quiet -c $CHECKSUM_PATH
-        status="$?"
+  ##### Archive Mode #####
 
-        if [ $status == 1 ]; then
-            # Archive File and Checksum
-            gameSaveFileName="$GAME_SAVE_NAME$i.$GAME_SAVE_EXT"
-            gameSaveFilePath="$GAME_SAVE_DIR/$gameSaveFileName"
+  # Determine Indexes
+  slots=""
+  for fileName in $(ls "$DIR_SAVES" | grep "$SAVE_EXT"); do
+    noPrefix="${fileName/$SAVE_PREFIX/}"
+    potentialIndex="${noPrefix/.$SAVE_EXT/}"
+    if [[ "$potentialIndex" =~ ^[+-]?[0-9]+$ ]]; then
+        slots="$slots $potentialIndex"
+    fi
+  done
 
-            timestamp=$(date +%Y-%m-%d_T%H%M)
-            newArchiveFilePath="$ARCHIVE_DIR/$GAME_SAVE_NAME$i"_"$timestamp.$GAME_SAVE_EXT"
+  # Loop and archive if checksum fails
+  if [[ $(areAllChecksumsValid) == 0 ]]; then
+    for slot in $slots; do
+      saveFileName="$(deriveSaveFileName $slot)"
+      existingHash=$(cat $CHECKSUM_PATH | grep $saveFileName | awk '{print $1}')
 
-            cp $gameSaveFilePath $newArchiveFilePath
-            md5sum $gameSaveFileName >$CHECKSUM_PATH
-        fi
+      [[ "$(md5sum < $saveFileName)" = "$existingHash  -" ]] && isCheckValid=1 || isCheckValid=0
+
+      if [ $isCheckValid == 0 ]; then
+        # Archive file, set new checksum
+        timestamp=$(date +%Y-%m-%d_T%H%M)
+        
+        saveFilePath="$DIR_SAVES/$saveFileName"
+        archiveFilePath="$DIR_ARCHIVE/$(deriveSaveFileName $slot $timestamp)"
+
+        mkdir -p $DIR_ARCHIVE
+        cp $saveFilePath $archiveFilePath
+      fi
     done
+
+    # Create new checksum
+    md5sum * >$CHECKSUM_PATH
+  fi
 fi
