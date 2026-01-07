@@ -7,11 +7,13 @@
 _argGameSlot=0
 _argFilesBack=1
 
-while getopts ":g:i:r" opt; do
+while getopts ":g:i:l:r" opt; do
   case $opt in
     g) _argGameSlot="$OPTARG"
     ;;
     i) _argFilesBack="$OPTARG"
+    ;;
+    l) _argList=1
     ;;
     r) _argRestore=1
     ;;
@@ -37,6 +39,7 @@ SAVE_EXT="baronysave"
 
 CHECKSUM_FILE_NAME="checksum.md5"
 CHECKSUM_PATH="$DIR_ARCHIVE/$CHECKSUM_FILE_NAME"
+SLOT_LAST_SAVED_FILE_NAME="slot-last-saved.txt"
 
 function deriveSaveFileName {
   local slot=${1:-0}
@@ -75,6 +78,12 @@ function areAllChecksumsValid {
 
 # Set to saves directory
 cd $DIR_SAVES
+
+if [ "$_argList" == 1 ]; then
+  ##### List Mode #####
+  echo "Last saved slot: $(cat $DIR_ARCHIVE/$SLOT_LAST_SAVED_FILE_NAME)"
+  exit 0
+fi
 
 if [ "$_argRestore" == 1 ]; then
   ##### Restore Mode #####
@@ -119,6 +128,8 @@ else
 
         mkdir -p $DIR_ARCHIVE
         cp $saveFilePath $archiveFilePath
+
+        echo $slot > "$DIR_ARCHIVE/$SLOT_LAST_SAVED_FILE_NAME"
       fi
     done
 
